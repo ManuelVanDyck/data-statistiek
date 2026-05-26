@@ -53,7 +53,6 @@
     .copy-btn:hover { background: #0077ed; }
     .copy-btn.copied { background: #34c759; }
 
-    /* Tabs */
     .tabs {
       display: flex;
       gap: 0;
@@ -82,7 +81,6 @@
       font-weight: 600;
     }
 
-    /* Table */
     .table-wrapper {
       background: #fff;
       border-radius: 0 0 12px 12px;
@@ -169,17 +167,25 @@
   <script>
     const BASE_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQuxbTTd0h5n2g1L5vm-78L5qRjs63ppqua1rmQvBauJzxOtRaoviYDPuIB3vs_FU2LMppCcnbAbc4D/pub';
 
-    const SHEETS = ['Tabel1', 'Tabel2', 'Tabel3'];
+    // Tabbladnamen → Google Sheets gid's
+    const SHEETS = {
+      'Tabel1': '0',
+      'Tabel2': '1980589962',
+      'Tabel3': '1489141750'
+    };
+
     let activeSheet = 'Tabel1';
     let allData = {};
     let currentData = [];
 
     async function loadSheet(sheetName) {
-      const url = `${BASE_URL}?output=csv&sheet=${encodeURIComponent(sheetName)}`;
-      const res = await fetch(url);
+      const gid = SHEETS[sheetName];
+      const bust = Date.now();
+      const url = `${BASE_URL}?output=csv&gid=${gid}&_=${bust}`;
+      const res = await fetch(url, { cache: 'no-store' });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const csv = await res.text();
-      return csv.trim().split('\r\n').map(line => line.split(',').map(c => c.trim()));
+      return csv.trim().split(/\r?\n/).map(line => line.split(',').map(c => c.trim()));
     }
 
     async function loadAllSheets() {
@@ -187,8 +193,9 @@
       const updatedEl = document.getElementById('updated');
 
       try {
-        const results = await Promise.all(SHEETS.map(s => loadSheet(s)));
-        SHEETS.forEach((name, i) => { allData[name] = results[i]; });
+        const names = Object.keys(SHEETS);
+        const results = await Promise.all(names.map(n => loadSheet(n)));
+        names.forEach((name, i) => { allData[name] = results[i]; });
 
         renderTable(activeSheet);
 
@@ -214,14 +221,12 @@
 
       let html = '<table>';
 
-      // Header row
       html += '<tr><th></th>';
       for (let c = 0; c < rows[0].length; c++) {
         html += `<th>Kolom ${c + 1}</th>`;
       }
       html += '</tr>';
 
-      // Data rows
       rows.forEach((row, i) => {
         html += `<tr><td>${i + 1}</td>`;
         row.forEach(cell => {
@@ -236,12 +241,8 @@
 
     function switchTab(sheetName, tabEl) {
       activeSheet = sheetName;
-
-      // Update active tab styling
       document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
       tabEl.classList.add('active');
-
-      // Render from cache (no re-fetch needed)
       renderTable(sheetName);
     }
 
