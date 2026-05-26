@@ -25,11 +25,33 @@
       margin-bottom: 0.5rem;
     }
 
+    .toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
     .updated {
       font-size: 0.85rem;
       color: #86868b;
-      margin-bottom: 1.5rem;
     }
+
+    .copy-btn {
+      padding: 0.5rem 1rem;
+      border: none;
+      background: #0071e3;
+      color: #fff;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: background 0.2s;
+    }
+
+    .copy-btn:hover { background: #0077ed; }
+    .copy-btn.copied { background: #34c759; }
 
     .table-wrapper {
       background: #fff;
@@ -67,7 +89,6 @@
     }
 
     tr:last-child td { border-bottom: none; }
-
     tr:hover td { background: #f5f5f7; }
 
     .loading {
@@ -82,7 +103,7 @@
       color: #d32f2f;
     }
 
-    .refresh-btn {
+    .retry-btn {
       margin-top: 1rem;
       padding: 0.5rem 1rem;
       border: none;
@@ -93,35 +114,42 @@
       font-size: 0.9rem;
     }
 
-    .refresh-btn:hover { background: #0077ed; }
+    .retry-btn:hover { background: #0077ed; }
   </style>
 </head>
 <body>
   <div class="container">
     <h1>Data statistiek</h1>
-    <div class="updated" id="updated">Laden…</div>
+    <div class="toolbar">
+      <div class="updated" id="updated">Laden…</div>
+      <button class="copy-btn" id="copyBtn" onclick="copyData()">📋 Kopieer data</button>
+    </div>
     <div class="table-wrapper">
       <div id="content" class="loading">Data ophalen…</div>
     </div>
   </div>
 
   <script>
-    const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQuxbTTd0h5n2g1L5vm-78L5qRjs63ppqua1rmQvBauJzxOtRaoviYDPuIB3vs_FU2LMppCcnbAbc4D/pub?output=csv';
+    const BASE_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQuxbTTd0h5n2g1L5vm-78L5qRjs63ppqua1rmQvBauJzxOtRaoviYDPuIB3vs_FU2LMppCcnbAbc4D/pub';
+
+    let currentData = [];
 
     async function loadData() {
       const contentEl = document.getElementById('content');
       const updatedEl = document.getElementById('updated');
 
       try {
-        const res = await fetch(CSV_URL);
+        const url = BASE_URL + '?output=csv&single=true';
+        const res = await fetch(url);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const csv = await res.text();
 
-        const rows = csv.trim().split('\r\n').map(line => line.split(','));
+        const rows = csv.trim().split('\r\n').map(line => line.split(',').map(c => c.trim()));
+        currentData = rows;
 
         let html = '<table>';
 
-        // Header row with column indices
+        // Header row
         html += '<tr><th></th>';
         for (let c = 0; c < rows[0].length; c++) {
           html += `<th>Kolom ${c + 1}</th>`;
@@ -132,22 +160,53 @@
         rows.forEach((row, i) => {
           html += `<tr><td>${i + 1}</td>`;
           row.forEach(cell => {
-            html += `<td>${cell.trim()}</td>`;
+            html += `<td>${cell}</td>`;
           });
           html += '</tr>';
         });
 
         html += '</table>';
-
         contentEl.innerHTML = html;
 
         const now = new Date();
         updatedEl.textContent = `Laatst bijgewerkt: ${now.toLocaleDateString('nl-BE')} ${now.toLocaleTimeString('nl-BE')}`;
 
       } catch (err) {
-        contentEl.innerHTML = `<div class="error">Kon data niet ophalen: ${err.message}<br><button class="refresh-btn" onclick="loadData()">Opnieuw proberen</button></div>`;
+        contentEl.innerHTML = `<div class="error">Kon data niet ophalen: ${err.message}<br><button class="retry-btn" onclick="loadData()">Opnieuw proberen</button></div>`;
         updatedEl.textContent = '';
       }
+    }
+
+    function copyData() {
+      if (!currentData.length) return;
+
+      const text = currentData.map(row => row.join('\t')).join('\n');
+
+      navigator.clipboard.writeText(text).then(() => {
+        const btn = document.getElementById('copyBtn');
+        btn.textContent = '✅ Gekopieerd!';
+        btn.classList.add('copied');
+        setTimeout(() => {
+          btn.textContent = '📋 Kopieer data';
+          btn.classList.remove('copied');
+        }, 2000);
+      }).catch(() => {
+        // Fallback voor oudere browsers
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+
+        const btn = document.getElementById('copyBtn');
+        btn.textContent = '✅ Gekopieerd!';
+        btn.classList.add('copied');
+        setTimeout(() => {
+          btn.textContent = '📋 Kopieer data';
+          btn.classList.remove('copied');
+        }, 2000);
+      });
     }
 
     loadData();
